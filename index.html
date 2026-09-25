@@ -1,0 +1,1843 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>五子棋 AI 对战平台</title>
+<style>
+  :root{
+    --bg:#1a1d24;
+    --bg-grad-1:#1e2230;
+    --bg-grad-2:#14161d;
+    --card:#252932;
+    --card-2:#2c313c;
+    --border:#343a46;
+    --primary:#4a9eff;
+    --primary-dim:#2f6fbd;
+    --success:#4ade80;
+    --warn:#fbbf24;
+    --danger:#ef4444;
+    --text:#e9ecf3;
+    --muted:#8d95a7;
+    --radius:12px;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+    --font:-apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    min-height:100vh;
+    font-family:var(--font);
+    color:var(--text);
+    background:
+      radial-gradient(1200px 700px at 12% -10%, #232a3a 0%, rgba(35,42,58,0) 60%),
+      radial-gradient(900px 600px at 100% 0%, #212435 0%, rgba(33,36,53,0) 55%),
+      linear-gradient(160deg, var(--bg-grad-1) 0%, var(--bg-grad-2) 100%);
+    background-attachment:fixed;
+    -webkit-font-smoothing:antialiased;
+  }
+  [v-cloak]{display:none;}
+
+  /* ---------------- 顶栏 ---------------- */
+  .topbar{
+    position:sticky; top:0; z-index:40;
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    padding:14px 22px;
+    background:rgba(26,29,36,.82);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border);
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-size:18px; font-weight:650; letter-spacing:.3px;}
+  .brand .logo{
+    width:28px;height:28px;border-radius:8px;
+    background:linear-gradient(135deg,#4a9eff,#2f6fbd);
+    display:grid;place-items:center;font-size:15px;
+    box-shadow:0 6px 16px rgba(74,158,255,.35);
+  }
+  .topbar .actions{display:flex; gap:8px; flex-wrap:wrap;}
+
+  /* ---------------- 按钮 ---------------- */
+  .btn{
+    appearance:none; border:1px solid var(--border); cursor:pointer;
+    background:var(--card-2); color:var(--text);
+    padding:8px 14px; border-radius:10px;
+    font-size:13.5px; font-family:inherit; font-weight:520;
+    transition:background .16s, border-color .16s, transform .1s, opacity .16s;
+    white-space:nowrap;
+  }
+  .btn:hover:not(:disabled){background:#363c49; border-color:#414958;}
+  .btn:active:not(:disabled){transform:translateY(1px);}
+  .btn:disabled{opacity:.42; cursor:not-allowed;}
+  .btn.primary{background:linear-gradient(180deg,#4a9eff,#3b7fd6); border-color:#3b7fd6; color:#fff;}
+  .btn.primary:hover:not(:disabled){background:linear-gradient(180deg,#5aa9ff,#4489e0);}
+  .btn.success{background:rgba(74,222,128,.14); border-color:rgba(74,222,128,.4); color:#8bf0b0;}
+  .btn.success:hover:not(:disabled){background:rgba(74,222,128,.22);}
+  .btn.warn{background:rgba(251,191,36,.14); border-color:rgba(251,191,36,.38); color:#ffd97a;}
+  .btn.warn:hover:not(:disabled){background:rgba(251,191,36,.22);}
+  .btn.block{width:100%; justify-content:center;}
+
+  /* ---------------- 布局 ---------------- */
+  .layout{
+    max-width:1080px; margin:0 auto; padding:22px;
+    display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:20px;
+    align-items:start;
+  }
+  .card{
+    background:var(--card); border:1px solid var(--border);
+    border-radius:var(--radius); box-shadow:var(--shadow);
+  }
+  .board-card{padding:18px; display:flex; justify-content:center;}
+  .board-wrap{width:100%; display:flex; justify-content:center; align-items:center;}
+  canvas.board{
+    display:block; border-radius:10px; cursor:pointer;
+    background:linear-gradient(135deg,#e8c88a,#d4a95f);
+    box-shadow:0 18px 40px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.3);
+    touch-action:manipulation;
+  }
+  canvas.board.disabled{cursor:not-allowed;}
+
+  /* ---------------- 右侧面板 ---------------- */
+  .panel{padding:16px; display:flex; flex-direction:column; gap:14px; position:sticky; top:78px;}
+  .panel h3{
+    margin:0; font-size:14px; font-weight:650; letter-spacing:.4px;
+    display:flex; align-items:center; gap:7px; color:#cfd6e6;
+  }
+  .rows{display:flex; flex-direction:column; gap:8px; font-size:13.5px;}
+  .row{display:flex; justify-content:space-between; gap:10px; align-items:baseline;}
+  .row .k{color:var(--muted); flex:0 0 auto;}
+  .row .v{text-align:right; word-break:break-all;}
+  .divider{height:1px; background:var(--border); margin:0;}
+  .turn{
+    display:flex; align-items:center; gap:8px; padding:9px 11px;
+    border-radius:9px; background:#1f2430; border:1px solid var(--border); font-size:13.5px;
+  }
+  .dot{width:14px;height:14px;border-radius:50%;flex:0 0 auto;}
+  .dot.black{background:radial-gradient(circle at 30% 30%,#5c5c5c,#000); box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);}
+  .dot.white{background:radial-gradient(circle at 30% 30%,#fff,#c8ccd4); box-shadow:inset 0 0 0 1px rgba(0,0,0,.25);}
+  .thinking{color:var(--primary); font-size:12.5px; margin-left:auto;}
+  .blink{animation:blink 1.1s ease-in-out infinite;}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+
+  .result{
+    padding:9px 12px; border-radius:9px; font-size:14px; font-weight:600; text-align:center;
+    background:rgba(74,222,128,.12); border:1px solid rgba(74,222,128,.35); color:#8bf0b0;
+  }
+  .result.draw{background:rgba(74,158,255,.12); border-color:rgba(74,158,255,.35); color:#9dcaff;}
+  .errbox{
+    padding:9px 11px; border-radius:9px; font-size:12.5px; line-height:1.5;
+    background:rgba(239,68,68,.13); border:1px solid rgba(239,68,68,.42); color:#ffa6a6;
+    word-break:break-word;
+  }
+  .btn-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+
+  .hist{
+    max-height:210px; overflow-y:auto; display:flex; flex-direction:column; gap:5px;
+    font-size:13px; padding-right:4px;
+  }
+  .hist::-webkit-scrollbar{width:7px;}
+  .hist::-webkit-scrollbar-thumb{background:#3c4353;border-radius:4px;}
+  .hist::-webkit-scrollbar-track{background:transparent;}
+  .hist-item{
+    display:flex; align-items:center; gap:8px; padding:5px 8px; border-radius:7px;
+    background:#1f2430; border:1px solid transparent;
+  }
+  .hist-item.last{border-color:rgba(74,158,255,.5); background:rgba(74,158,255,.08);}
+  .hist-item .idx{color:var(--muted); width:26px; flex:0 0 auto; font-variant-numeric:tabular-nums;}
+  .hist-item .who{margin-left:auto; color:var(--muted); font-size:11.5px;}
+  .empty{color:var(--muted); font-size:12.5px; text-align:center; padding:10px 0;}
+
+  /* ---------------- 模态框 ---------------- */
+  .mask{
+    position:fixed; inset:0; z-index:60; background:rgba(8,10,14,.66);
+    backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal{
+    width:100%; max-width:470px; background:var(--card); border:1px solid var(--border);
+    border-radius:14px; box-shadow:0 24px 60px rgba(0,0,0,.6); overflow:hidden;
+    animation:pop .18s ease-out;
+  }
+  .modal.wide{max-width:560px;}
+  @keyframes pop{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
+  .modal-head{
+    padding:15px 18px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between; font-weight:640; font-size:15px;
+  }
+  .modal-body{padding:16px 18px; display:flex; flex-direction:column; gap:14px; max-height:70vh; overflow-y:auto;}
+  .modal-foot{
+    padding:13px 18px; border-top:1px solid var(--border);
+    display:flex; justify-content:flex-end; gap:9px; background:#22262f;
+  }
+  .field{display:flex; flex-direction:column; gap:7px;}
+  .field > label{font-size:12.5px; color:var(--muted);}
+  .field .hint{font-size:11.5px; color:#6f7789;}
+  .field .hint.warnhint{color:var(--danger);}
+  select,input[type="text"],input[type="number"]{
+    width:100%; padding:9px 11px; border-radius:9px; font-family:inherit; font-size:13.5px;
+    background:#1c212b; color:var(--text); border:1px solid var(--border); outline:none;
+  }
+  select:focus,input:focus{border-color:var(--primary);}
+  select:disabled{opacity:.5;}
+  .seg{display:flex; gap:6px;}
+  .seg button{
+    flex:1; padding:8px 0; border-radius:9px; cursor:pointer; font-family:inherit; font-size:13.5px;
+    background:#1c212b; color:var(--text); border:1px solid var(--border); transition:.15s;
+  }
+  .seg button:hover{border-color:#4a5264;}
+  .seg button.on{background:rgba(74,158,255,.16); border-color:var(--primary); color:#9dcaff; font-weight:600;}
+  /* 窄排的小号分段按钮（用在「玩家」下拉下面那行难度上） */
+  .seg.sm{margin-top:7px; gap:5px;}
+  .seg.sm button{padding:6px 0; font-size:12.5px; border-radius:8px;}
+  /* 「帮我想一步」的建议框 */
+  .hintbox{
+    margin-top:8px; padding:8px 10px; border-radius:9px; font-size:12px; line-height:1.6;
+    background:rgba(74,158,255,.10); border:1px dashed rgba(74,158,255,.45); color:#9dcaff;
+  }
+  .hintbox .hb-title{font-weight:600;}
+  .radios{display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px;}
+  .radios button{
+    padding:9px 0; border-radius:9px; cursor:pointer; font-family:inherit; font-size:13px;
+    background:#1c212b; color:var(--text); border:1px solid var(--border); transition:.15s;
+  }
+  .radios button:hover{border-color:#4a5264;}
+  .radios button.on{background:rgba(74,158,255,.16); border-color:var(--primary); color:#9dcaff; font-weight:600;}
+  input[type="range"]{width:100%; accent-color:var(--primary);}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .err-inline{font-size:12px; color:var(--danger);}
+
+  /* ---------------- 胜利覆盖层 ---------------- */
+  .over .modal{max-width:400px; text-align:center;}
+  .trophy{font-size:52px; line-height:1; margin:6px 0 4px;}
+  .over-title{font-size:22px; font-weight:700; margin:0;}
+  .over-sub{color:var(--muted); font-size:13.5px; margin-top:8px;}
+  .over-body{padding:22px 18px 16px;}
+
+  /* ---------------- Toast ---------------- */
+  .toasts{position:fixed; right:20px; bottom:20px; z-index:80; display:flex; flex-direction:column; gap:9px;}
+  .toast{
+    padding:10px 15px; border-radius:10px; font-size:13px; max-width:330px;
+    background:#2d3340; border:1px solid var(--border); box-shadow:var(--shadow);
+    animation:slide .2s ease-out;
+  }
+  .toast.ok{border-color:rgba(74,222,128,.4); color:#8bf0b0;}
+  .toast.warn{border-color:rgba(251,191,36,.4); color:#ffd97a;}
+  @keyframes slide{from{transform:translateX(18px);opacity:0}to{transform:none;opacity:1}}
+
+  .help-list{margin:0; padding-left:18px; font-size:13.4px; line-height:1.85; color:#cfd6e6;}
+  .kbd{
+    display:inline-block; padding:1px 6px; border-radius:5px; background:#1c212b;
+    border:1px solid var(--border); font-size:12px; color:#a9b2c4;
+  }
+
+  /* ---------------- 思考开关 ---------------- */
+  .switch-row{display:flex; align-items:center; gap:10px; font-size:13.5px;}
+  .switch-row .k{color:var(--muted); flex:0 0 auto;}
+  .switch{
+    margin-left:auto; width:46px; height:24px; border-radius:999px; padding:0;
+    border:1px solid var(--border); background:#1c212b; cursor:pointer; position:relative;
+    transition:background .18s, border-color .18s; flex:0 0 auto;
+  }
+  .switch .knob{
+    position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%;
+    background:#6b7488; transition:transform .18s, background .18s;
+  }
+  .switch.on{background:rgba(74,158,255,.22); border-color:var(--primary);}
+  .switch.on .knob{transform:translateX(22px); background:var(--primary);}
+  .switch:disabled{opacity:.5; cursor:not-allowed;}
+  .switch-hint{font-size:11.5px; color:#6f7789;}
+
+  /* ---------------- 模型日志 ---------------- */
+  .log-card{grid-column:1 / -1; padding:16px; display:flex; flex-direction:column; gap:12px;}
+  .log-head{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;}
+  .log-head h3{margin:0; font-size:14px; font-weight:650; color:#cfd6e6; display:flex; align-items:center; gap:7px;}
+  .log-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .log-body{
+    max-height:360px; min-height:96px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;
+    padding:11px; border-radius:10px; background:#1b1f28; border:1px solid var(--border);
+    font-family:"Cascadia Mono", Consolas, Menlo, monospace; font-size:12.5px;
+  }
+  .log-body::-webkit-scrollbar{width:8px;}
+  .log-body::-webkit-scrollbar-thumb{background:#3c4353;border-radius:4px;}
+  .log-body::-webkit-scrollbar-track{background:transparent;}
+  .log-item{display:flex; gap:9px; align-items:flex-start; line-height:1.65;}
+  .log-tag{
+    flex:0 0 auto; padding:1px 6px; border-radius:5px; font-size:11px; white-space:nowrap;
+    background:#2b3240; color:#9aa4b8; border:1px solid #363d4c; margin-top:2px;
+  }
+  .log-text{margin:0; white-space:pre-wrap; word-break:break-word; color:#c8d0e0; flex:1 1 auto; font-family:inherit;}
+  .log-prompt .log-text{color:#94a0b6; max-height:150px; overflow-y:auto;}
+  .log-reasoning .log-tag{background:rgba(251,191,36,.14); color:#ffd97a; border-color:rgba(251,191,36,.3);}
+  .log-reasoning .log-text{color:#cbb98f; font-style:italic;}
+  .log-content .log-tag{background:rgba(74,158,255,.14); color:#9dcaff; border-color:rgba(74,158,255,.3);}
+  .log-content .log-text{color:#e9ecf3; font-weight:600;}
+  .log-move .log-tag{background:rgba(74,222,128,.14); color:#8bf0b0; border-color:rgba(74,222,128,.3);}
+  .log-move .log-text{color:#8bf0b0; font-weight:600;}
+  .log-error .log-tag{background:rgba(239,68,68,.16); color:#ffa6a6; border-color:rgba(239,68,68,.35);}
+  .log-error .log-text{color:#ffa6a6;}
+  .log-notice .log-tag{background:rgba(251,191,36,.12); color:#ffd97a; border-color:rgba(251,191,36,.28);}
+  .log-notice .log-text{color:#b9a377;}
+
+  @media (max-width:900px){
+    .layout{grid-template-columns:1fr; padding:14px;}
+    .panel{position:static;}
+    .board-card{padding:12px;}
+    .log-card{grid-column:1;}
+  }
+</style>
+</head>
+<body>
+<div id="app" v-cloak>
+  <!-- ======================= 顶栏 ======================= -->
+  <header class="topbar">
+    <div class="brand"><span class="logo">🎯</span><span>五子棋 AI 对战平台</span></div>
+    <div class="actions">
+      <button class="btn" @click="openSettings">⚙ 设置</button>
+      <button class="btn" @click="restart">🔄 重开</button>
+      <button class="btn" @click="helpOpen = true">❓ 帮助</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- ======================= 棋盘 ======================= -->
+    <section class="card board-card">
+      <div class="board-wrap" ref="wrapRef">
+        <canvas
+          class="board" ref="canvasRef" :class="{ disabled: !canHumanPlay }"
+          @mousemove="onMouseMove" @mouseleave="onMouseLeave" @click="onClick"></canvas>
+      </div>
+    </section>
+
+    <!-- ======================= 状态面板 ======================= -->
+    <aside class="card panel">
+      <h3>📊 对局状态</h3>
+
+      <div class="rows">
+        <div class="row"><span class="k">模式</span><span class="v">{{ modeLabel }}</span></div>
+        <div class="row"><span class="k">棋盘</span><span class="v">{{ state.size }}×{{ state.size }} / {{ state.win_length }}子</span></div>
+        <div class="row">
+          <span class="k">黑方</span>
+          <span class="v"><span class="dot black" style="display:inline-block;vertical-align:-2px;margin-right:6px"></span>{{ playerLabel('1') }}</span>
+        </div>
+        <div class="row">
+          <span class="k">白方</span>
+          <span class="v"><span class="dot white" style="display:inline-block;vertical-align:-2px;margin-right:6px"></span>{{ playerLabel('2') }}</span>
+        </div>
+      </div>
+
+      <template v-if="hasLlmPlayer">
+        <div class="switch-row">
+          <span class="k">🧠 模型思考</span>
+          <button class="switch" :class="{ on: state.thinking }" :disabled="thinkingBusy"
+                  @click="toggleThinking" :title="state.thinking ? '点击关闭' : '点击开启'">
+            <span class="knob"></span>
+          </button>
+        </div>
+        <div class="switch-hint" style="margin-top:-6px">
+          {{ state.thinking ? '已开启：先推理再落子，棋力明显更好，但每步约 1~3 分钟（过程可在下方日志里实时看）' : '已关闭：1~2 秒出坐标，棋力一般 —— 打开开关可以看它怎么推理' }}
+        </div>
+      </template>
+
+      <div class="row"><span class="k">高级</span><span class="v" style="font-size:12px;color:#9aa4b8">{{ advSummary }}</span></div>
+      <div class="switch-hint" v-if="hybridLine" style="margin-top:6px">
+        🧠 {{ hybridLine }}
+      </div>
+      <div class="switch-hint" v-if="engineLine" style="margin-top:6px">
+        🧩 {{ engineLine }}
+      </div>
+
+      <div class="turn">
+        <template v-if="!state.game_over">
+          <span class="dot" :class="state.current_player === 1 ? 'black' : 'white'"></span>
+          <span>{{ state.current_player === 1 ? '黑方' : '白方' }}{{ turnSuffix }}</span>
+          <span class="thinking blink" v-if="thinking">{{ isAlgoTurn ? '🧩 算法搜索中…' : '🤖 AI 思考中…' }}</span>
+        </template>
+        <template v-else>
+          <span>{{ resultText }}</span>
+        </template>
+      </div>
+
+      <div class="result" v-if="state.game_over" :class="{ draw: state.winner === 3 }">{{ resultText }} · 共 {{ state.history.length }} 步</div>
+      <div class="errbox" v-if="shownError">⚠️ {{ shownError }}</div>
+
+      <div class="divider"></div>
+
+      <div class="btn-grid">
+        <button class="btn block" :disabled="!canStep" @click="manualStep">▶ 下一步</button>
+        <button class="btn block" :class="autoPlaying ? 'warn' : 'success'" :disabled="state.game_over" @click="toggleAuto">
+          {{ autoPlaying ? '⏸ 暂停' : '▶ 自动对战' }}
+        </button>
+        <button class="btn block" style="grid-column:1 / -1" :disabled="!state.history.length" @click="undo">⏪ 悔棋</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- 🧩 让算法替人类玩家算一步：只给建议，不自动落子 -->
+      <div class="switch-hint" style="margin-bottom:6px">
+        🧩 轮到你时，可以让算法替你算一个落点（<b>只给建议，不自动落子</b>）
+      </div>
+      <div style="display:flex; gap:6px">
+        <select v-model="form.help_level" style="flex:0 0 88px">
+          <option v-for="a in algoLevels" :key="a.value" :value="a.value">{{ a.label }}</option>
+        </select>
+        <button class="btn block" style="flex:1 1 auto" :disabled="!canHint" @click="askHint">
+          {{ hinting ? '⏳ 计算中…' : '🧩 帮我想一步' }}
+        </button>
+      </div>
+      <div class="hintbox" v-if="hint">
+        <div class="hb-title">建议：第 {{ hint.row1 }} 行第 {{ hint.col1 }} 列（棋盘上已圈出，尚未落子）</div>
+        <div>
+          难度 {{ hint.level_label }} · 深度 {{ hint.depth }} 层 · {{ hint.nodes }} 个节点 · {{ hint.ms }}ms<span
+            v-if="hint.vcf"> · {{ hint.vcf }}</span>
+        </div>
+        <div>{{ hint.reason }}</div>
+        <div style="display:flex; gap:6px; margin-top:7px">
+          <button class="btn primary" @click="acceptHint">✅ 就下这里</button>
+          <button class="btn" @click="clearHint">✖ 忽略</button>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <h3>📜 落子历史</h3>
+      <div class="hist" ref="histRef">
+        <div class="empty" v-if="!state.history.length">暂无落子</div>
+        <div
+          class="hist-item" v-for="(m, i) in state.history" :key="i"
+          :class="{ last: i === state.history.length - 1 }">
+          <span class="idx">{{ i + 1 }}.</span>
+          <span class="dot" :class="m.player === 1 ? 'black' : 'white'"></span>
+          <span>({{ m.row }}, {{ m.col }})</span>
+          <span class="who">{{ moverLabel(m.player) }}</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ======================= 模型日志（流式） ======================= -->
+    <section class="card log-card">
+      <div class="log-head">
+        <h3>🤖 模型日志
+          <span class="switch-hint" style="font-weight:400">{{ streaming ? '· 正在接收…' : '· 空闲' }}</span>
+        </h3>
+        <div class="log-actions">
+          <button class="btn" @click="showPrompt">📄 查看当前提示词</button>
+          <button class="btn" :disabled="!logs.length" @click="clearLogs">🗑 清空</button>
+        </div>
+      </div>
+      <div class="log-body" ref="logRef">
+        <div class="empty" v-if="!logs.length">
+          这里会实时显示：发给模型的提示词原文 → 模型的思考过程（逐字流式）→ 最终落子。<br>
+          点「▶ 下一步」或直接在棋盘上落子即可看到。
+        </div>
+        <div class="log-item" v-for="l in logs" :key="l.id" :class="'log-' + l.kind">
+          <span class="log-tag">{{ logTag(l.kind) }}</span>
+          <pre class="log-text">{{ l.text }}</pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ======================= 设置模态框 ======================= -->
+  <div class="mask" v-if="settingsOpen" @click.self="settingsOpen = false">
+    <div class="modal wide">
+      <div class="modal-head"><span>⚙ 对局设置</span><button class="btn" @click="settingsOpen = false">✕</button></div>
+      <div class="modal-body">
+        <div class="field">
+          <label>对战模式</label>
+          <div class="radios">
+            <button v-for="m in modeOptions" :key="m.value" :class="{ on: form.mode === m.value }"
+                    @click="setMode(m.value)">{{ m.label }}</button>
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <label>棋盘大小</label>
+            <select v-model.number="form.size">
+              <option v-for="s in sizeOptions" :key="s" :value="s">{{ s }} × {{ s }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>连珠数</label>
+            <div class="seg">
+              <button v-for="k in winOptions" :key="k" :class="{ on: form.win_length === k }"
+                      @click="form.win_length = k">{{ k }}子</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <label>黑方玩家</label>
+            <select v-model="form.p1" :disabled="form.mode === 'human_vs_human'">
+              <option value="human">人类</option>
+              <option value="ai">AI 模型（LLM）</option>
+              <option value="algorithm">🧩 传统算法（不调模型）</option>
+            </select>
+            <div class="seg sm" v-if="form.p1 === 'algorithm'">
+              <button v-for="a in algoLevels" :key="a.value"
+                      :class="{ on: form.p1_level === a.value }"
+                      @click="form.p1_level = a.value">{{ a.label }}</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>白方玩家</label>
+            <select v-model="form.p2" :disabled="form.mode === 'human_vs_human'">
+              <option value="human">人类</option>
+              <option value="ai">AI 模型（LLM）</option>
+              <option value="algorithm">🧩 传统算法（不调模型）</option>
+            </select>
+            <div class="seg sm" v-if="form.p2 === 'algorithm'">
+              <button v-for="a in algoLevels" :key="a.value"
+                      :class="{ on: form.p2_level === a.value }"
+                      @click="form.p2_level = a.value">{{ a.label }}</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="field" v-if="form.p1 === 'algorithm' || form.p2 === 'algorithm'">
+          <label>🧩 传统算法难度（黑白各设一份）</label>
+          <div class="hint" style="white-space:pre-line"
+               :class="{ warnhint: algoTipWarn }">{{ algoTipText }}</div>
+          <div class="hint" style="margin-top:5px">
+            <b>两端可以选不同难度</b> —— 例如黑方「困难」对白方「简单」，
+            模式选「机机对战」再点「▶ 自动对战」，就能直接看出强弱差距。<br>
+            纯算法走子<b>完全不调用模型</b>，不发任何网络请求 —— 模型服务没启动也能下。
+            它用「迭代加深 + NegaScout 剪枝 + 置换表 + VCF 连续冲四搜索」，难度越高算得越深。<br>
+            想让算法和 LLM 对比棋力：一边设「🧩 传统算法」、一边设「AI 模型（LLM）」。<br>
+            ⚠️ 难度还能<b>边下边调</b> —— 改完点「仅应用高级设置」，下一步立即生效，不用重开对局。
+          </div>
+        </div>
+        <div class="field">
+          <label>AI 模型（仅「AI 模型（LLM）」玩家使用）</label>
+          <select v-if="models.length" v-model="form.model">
+            <option v-for="m in models" :key="m" :value="m">{{ m }}</option>
+          </select>
+          <input v-else type="text" v-model="form.model" placeholder="请输入模型名，例如 local-model" />
+          <div class="hint" v-if="models.length">共 {{ models.length }} 个模型，来自 {{ form.baseUrl }}/v1/models</div>
+          <div class="err-inline" v-else-if="modelsError">模型列表拉取失败，已切换为手动输入：{{ modelsError }}</div>
+          <div class="hint" v-else>该地址未返回任何模型，可手动输入模型名</div>
+        </div>
+
+        <div class="field">
+          <label>模型地址（仅 LLM 玩家使用；纯算法玩家完全不需要）</label>
+          <div style="display:flex; gap:8px">
+            <input type="text" v-model="form.baseUrl" placeholder="http://localhost:10003" />
+            <button class="btn" :disabled="loadingModels" @click="loadModels">{{ loadingModels ? '…' : '刷新' }}</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>AI 间隔：{{ form.interval.toFixed(1) }} 秒</label>
+          <input type="range" min="0.3" max="5" step="0.1" v-model.number="form.interval" />
+        </div>
+
+        <div class="field">
+          <div class="switch-row" style="gap:12px">
+            <label style="font-size:12.5px;color:var(--muted)">🧠 模型思考</label>
+            <button class="switch" :class="{ on: form.thinking }" @click="form.thinking = !form.thinking"
+                    style="margin-left:auto">
+              <span class="knob"></span>
+            </button>
+          </div>
+          <div class="hint">
+            关闭：直接出坐标，1~2 秒一步（棋力一般）。<br>
+            开启：模型先写出推理过程再落子，棋力明显更好，但每步约 1~3 分钟 —— 过程可在「模型日志」里实时观看。
+          </div>
+        </div>
+
+        <!-- ==================== 高级选项 ==================== -->
+        <div class="divider" style="margin:4px 0"></div>
+        <div style="display:flex;align-items:baseline;gap:8px">
+          <span style="font-size:13.5px;font-weight:620">🧪 高级选项</span>
+          <span class="hint" style="margin-left:auto">这些可以「只应用、不重开对局」</span>
+        </div>
+
+        <div class="field">
+          <label>棋盘格式（提示词里棋盘怎么呈现给模型）</label>
+          <div class="seg">
+            <button v-for="f in boardFormats" :key="f.value"
+                    :class="{ on: form.board_format === f.value }"
+                    @click="form.board_format = f.value">{{ f.label }}</button>
+          </div>
+          <div class="hint">{{ boardFormatTip }}</div>
+        </div>
+
+        <div class="field">
+          <label>思考强度（仅「模型思考」开启时生效）</label>
+          <div class="seg">
+            <button v-for="b in thinkingBudgets" :key="b.value"
+                    :class="{ on: form.thinking_budget === b.value }"
+                    @click="form.thinking_budget = b.value">{{ b.label }}</button>
+          </div>
+          <div class="hint">档位越高推得越久、通常棋力越好，也越慢（低 512 / 中 1024 / 高 2048 / 极高 4096 token）。</div>
+        </div>
+
+        <div class="field">
+          <div class="switch-row" style="gap:12px">
+            <label style="font-size:12.5px;color:var(--muted)">📝 关思考时也输出一段解析</label>
+            <button class="switch" :class="{ on: form.analysis }"
+                    @click="form.analysis = !form.analysis" style="margin-left:auto">
+              <span class="knob"></span>
+            </button>
+          </div>
+          <div class="hint">
+            开启后提示词会要求模型「先定好落子，再写一行理由，最后单独一行给坐标」，日志里能看到它的判断依据。
+            坐标取<b>最后</b>一个，所以理由里提到别的点也不会取错。<br>
+            ⚠️ 实测会掉一点棋力（同一个必堵局面：关解析 3/3 堵对，开解析 2/3）——
+            模型有时「说的和下的不一致」。建议当作调试/观察功能使用。
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="switch-row" style="gap:12px">
+            <label style="font-size:12.5px;color:var(--muted)">🎯 战术提示（实验性）</label>
+            <button class="switch" :class="{ on: form.tactics }"
+                    @click="form.tactics = !form.tactics" style="margin-left:auto">
+              <span class="knob"></span>
+            </button>
+          </div>
+          <div class="hint">
+            程序先算出「谁下一手就能连成 K 子获胜」，把这些点写进提示词。
+            实测 15×15 黑四连必须堵的局面：关掉 0/3 次会去堵，打开后 3/3 次全部堵对。
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="switch-row" style="gap:12px">
+            <label style="font-size:12.5px;color:var(--muted)">🧮 传统算法辅助决策（实验性）</label>
+            <button class="switch" :class="{ on: form.assist }"
+                    @click="form.assist = !form.assist" style="margin-left:auto">
+              <span class="knob"></span>
+            </button>
+          </div>
+          <div class="hint">
+            程序先用传统算法做「侦察」：识别双方棋型（五连/活四/冲四/活三/眠三/活二，
+            按 5 子棋习惯命名，连珠数不是 5 时报告里会自动换算叫法）、
+            识别双三·四三·双四这类组合阵型、给候选点打分排序并标注紧迫度（S/A/B/C/D），
+            再把整份局势报告转成自然语言写进提示词 —— 模型拿到的是「有哪些威胁、建议下哪儿、
+            为什么」，而不是裸棋盘。<br>
+            报告里的坐标一律用 <b>「行,列」纯数字（1 起算）</b>，与提示词要求的输出格式一致，
+            不会引入解析歧义。<br>
+            ⚠️ 提示词会明显变长（15×15 约 +1200 字），但程序侧计算只要几毫秒，不拖慢响应。
+            与「🎯 战术提示」可以各自独立开关。
+          </div>
+          <div style="margin-top:8px">
+            <button class="btn" @click="showAnalysis">📊 查看结构化分析报告</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="switch-row" style="gap:12px">
+            <label style="font-size:12.5px;color:var(--muted)">🧠 混合决策（实验性）</label>
+            <button class="switch" :class="{ on: form.hybrid }"
+                    @click="form.hybrid = !form.hybrid" style="margin-left:auto">
+              <span class="knob"></span>
+            </button>
+          </div>
+          <div class="hint">
+            在「算法辅助」之上再进一步 —— <b>越确定的局面，程序越强势</b>：<br>
+            · <b>必下局面 → 程序直接落子，连模型都不问</b>：自己下一手就能连成 K 子，
+            或对手只剩<b>唯一</b>一个必胜点（例：<b>0 1 1 1 0 1</b> 轮白，只能下在中间那个空位变成
+            <b>0 1 1 1 2 1</b>）。这类局面模型偶尔会在正解旁边落子，一步走错直接输，
+            而程序算得比它准，还能省掉一次模型调用。<br>
+            · <b>高警惕局面 → 只给模型 2~3 个点挑</b>：对手活三时封堵点其实只有两个
+            （例：<b>0 0 1 1 1 0 0</b> 轮白，只可能是两端之一），就把这两个点丢给模型判断，
+            而不是把 15 个候选点摊给它 —— 否则它容易跑去选一个分数高但无关的点。<br>
+            其余局面完全不干预，照旧走原来的「报告 + 模型自由决策」。<br>
+            ⚠️ 只有<b>对手的威胁</b>会收敛候选；自己形成活三时不限制，避免丢掉「双三」这类更好的选择。
+            与「🧮 传统算法辅助决策」可各自独立开关（只开本项时，提示词里只多出那段硬性约束）。
+          </div>
+
+          <div class="field" style="margin-top:8px">
+            <label>高警惕时最多给几个候选点：{{ form.hybrid_hints }} 个</label>
+            <input type="range" min="2" max="5" step="1" v-model.number="form.hybrid_hints" />
+          </div>
+
+          <div class="field">
+            <div class="switch-row" style="gap:12px">
+              <label style="font-size:12.5px;color:var(--muted)">强制落子时跳过模型（更快）</label>
+              <button class="switch" :class="{ on: form.hybrid_skip_model }"
+                      @click="form.hybrid_skip_model = !form.hybrid_skip_model" style="margin-left:auto">
+                <span class="knob"></span>
+              </button>
+            </div>
+            <div class="hint">
+              开启：必下局面程序直接落子，不再请求模型（日志里会标「🧮 算法强制落子」）。<br>
+              关闭：仍问一次模型，但最终采用程序的答案 —— 日志里能看到「模型本来会下哪儿」，适合对比观察。
+            </div>
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <label>温度 temperature：{{ Number(form.temperature).toFixed(2) }}</label>
+            <input type="range" min="0" max="2" step="0.05" v-model.number="form.temperature" />
+          </div>
+          <div class="field">
+            <label>重复惩罚 repeat_penalty：{{ Number(form.repeat_penalty).toFixed(2) }}</label>
+            <input type="range" min="0.5" max="2" step="0.05" v-model.number="form.repeat_penalty" />
+          </div>
+        </div>
+
+        <div class="row2">
+          <div class="field">
+            <label>top_p：{{ Number(form.top_p).toFixed(2) }}</label>
+            <input type="range" min="0" max="1" step="0.05" v-model.number="form.top_p" />
+          </div>
+          <div class="field">
+            <label>top_k：{{ form.top_k }}</label>
+            <input type="range" min="0" max="200" step="1" v-model.number="form.top_k" />
+          </div>
+        </div>
+        <div class="hint" style="margin-top:-8px">
+          采样参数用 llama.cpp 的原生字段名直接透传；温度越低越稳定（0.2~0.4 适合这类「只要一个答案」的任务）。
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" @click="settingsOpen = false">取消</button>
+        <button class="btn" @click="applyAdvanced">仅应用高级设置</button>
+        <button class="btn primary" @click="confirmSettings">确定并开始新对局</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= 帮助 ======================= -->
+  <div class="mask" v-if="helpOpen" @click.self="helpOpen = false">
+    <div class="modal">
+      <div class="modal-head"><span>❓ 使用帮助</span><button class="btn" @click="helpOpen = false">✕</button></div>
+      <div class="modal-body">
+        <ul class="help-list">
+          <li>点击棋盘交点落子，棋子按 <span class="kbd">0.85 × 格距</span> 绘制，最后一手有红点标记。</li>
+          <li>默认是人机对战：你执黑先行，落子后白方 AI 自动应招。</li>
+          <li><b>▶ 下一步</b> 让当前 AI 走一步；<b>▶ 自动对战</b> 让 AI 双方按设定间隔自动轮流落子，可随时暂停。</li>
+          <li><b>⏪ 悔棋</b> 回退一步；人机模式会直接退回到你的回合，机机模式退回两步。</li>
+          <li>AI 落子由本地 llama.cpp server（OpenAI 兼容接口）驱动；服务不可用或输出无法解析时，会自动回退为「靠近已有棋子的随机空位」，并在面板上用红色提示原因。</li>
+          <li><b>🤖 模型日志</b> 会实时显示每一步发给模型的<b>提示词原文</b>、模型的<b>思考过程</b>（逐字流式）以及最终落子 —— 觉得它「乱下」时先看这里。</li>
+          <li><b>🧠 模型思考</b> 开关：关闭时直接出坐标（1~2 秒，棋力一般）；开启时模型先写推理再落子（每步约 1~3 分钟，棋力明显更好，过程可在日志里实时看）。开关即时生效，不用重开对局。</li>
+          <li>在 <b>⚙ 设置</b> 中可改棋盘大小（9/13/15/19）、连珠数（3/4/5）、模式、黑白双方玩家、AI 模型、模型地址与思考开关。</li>
+          <li><b>🧩 传统算法玩家（不调模型）</b>：黑白任意一方都可以设成「传统算法」，它用本地搜索引擎
+            （迭代加深 + NegaScout 剪枝 + 置换表 + VCF 连续冲四搜索）直接算落点，
+            <b>不发任何网络请求</b>，所以模型服务没启动也能正常对局。
+            难度分 简单 / 普通 / 困难 / 极致四档（决定搜索的目标深度与节点预算），
+            而且<b>黑白各自设一份</b> —— 不再是全局一个值。<br>
+            · 想让它当对手：模式选「人机对战」，把白方设成「🧩 传统算法」<br>
+            · 想比较 LLM 和算法的棋力：模式选「机机对战」，一边设 LLM、一边设传统算法，
+            点「▶ 自动对战」看它们互搏<br>
+            · 想比较不同难度：两边都设「传统算法」，黑方选「困难」、白方选「简单」，
+            点「▶ 自动对战」就能直观看出差距<br>
+            · 难度<b>可以边下边改</b>：设置里调完点「仅应用高级设置」，下一步立即生效，
+            不用重开对局</li>
+          <li><b>🧩 帮我想一步</b>（状态面板里）：轮到你落子时，可以让算法替你算一个落点。
+            先在下拉里选难度，点按钮后算法开始搜索，算完会在<b>棋盘上圈出蓝色光圈</b>
+            并给出理由与搜索统计 —— 这只是<b>建议，不会自动落子</b>，
+            你点「✅ 就下这里」才真的下（也可以直接忽略它，自己下别处）。<br>
+            适合「不太确定该堵哪边」的时候；难度越高算得越深、也越慢。
+            因为搜索只在棋盘副本上进行，这一步完全不会改动对局状态，随时可以反复算。</li>
+          <li><b>🧪 高级选项</b>（设置面板底部，改完可点「仅应用高级设置」不重开对局）：
+            <br>· <b>棋盘格式</b>：行号+数字 / 逐格标注（第N行第M列:值）/ 只列棋子 —— 换一种喂给模型的方式
+            <br>· <b>思考强度</b>：低 512 / 中 1024 / 高 2048 / 极高 4096 token
+            <br>· <b>关思考时也输出解析</b>：让模型先给一句理由，最后一行必须是坐标（取最后一个坐标，不会取错）
+            <br>· <b>战术提示（实验性）</b>：程序先算出「谁下一手就能赢」，把这些点写进提示词
+            <br>· <b>传统算法辅助决策（实验性）</b>：程序先做棋型识别 + 候选点评分 + 威胁分级，
+            把整份局势报告写进提示词，模型只负责从建议里挑一个落点；旁边的
+            <b>📊 查看结构化分析报告</b> 可以把程序算出的原始数据打到日志里
+            <br>· <b>混合决策（实验性）</b>：在辅助决策之上再分一层 ——
+            <b>必下局面</b>（自己一子即胜、或对手只剩唯一必胜点）由程序<b>直接落子</b>，不再请求模型；
+            <b>高警惕局面</b>（对手活三一类）只给模型 2~5 个封堵点挑；其余局面完全不干预。
+            边上的两个控件分别是「最多给几个候选点」和「强制落子时是否跳过模型」
+            <br>· <b>采样参数</b>：temperature / top_p / top_k / repeat_penalty，直接透传给 llama.cpp
+          </li>
+          <li>所有行列编号在<b>提示词里都是 1 起算</b>（第1行第1列），界面上的「内部坐标」是 0 起算，日志里两个都会标出来。</li>
+        </ul>
+      </div>
+      <div class="modal-foot"><button class="btn primary" @click="helpOpen = false">知道了</button></div>
+    </div>
+  </div>
+
+  <!-- ======================= 胜利覆盖层 ======================= -->
+  <div class="mask over" v-if="overOpen" @click.self="overOpen = false">
+    <div class="modal">
+      <div class="over-body">
+        <div class="trophy">{{ state.winner === 3 ? '🤝' : '🏆' }}</div>
+        <p class="over-title">{{ resultText }}</p>
+        <p class="over-sub">共 {{ state.history.length }} 步 · {{ state.size }}×{{ state.size }} / {{ state.win_length }}子</p>
+      </div>
+      <div class="modal-foot" style="justify-content:center">
+        <button class="btn" @click="overOpen = false">查看棋盘</button>
+        <button class="btn primary" @click="restart">🔄 再来一局</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= Toast ======================= -->
+  <div class="toasts">
+    <div class="toast" v-for="t in toasts" :key="t.id" :class="t.kind">{{ t.text }}</div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script>
+const { createApp, ref, reactive, computed, onMounted, nextTick } = Vue;
+
+/* ------------------------------------------------------------------ *
+ * 星位表
+ * ------------------------------------------------------------------ */
+const STAR_POINTS = {
+  9:  [[2,2],[2,6],[4,4],[6,2],[6,6]],
+  13: [[3,3],[3,9],[6,6],[9,3],[9,9]],
+  15: [[3,3],[3,11],[7,7],[11,3],[11,11]],
+  19: [[3,3],[3,9],[3,15],[9,3],[9,9],[9,15],[15,3],[15,9],[15,15]]
+};
+
+createApp({
+  setup() {
+    /* --------------------------- 响应式状态 --------------------------- */
+    const state = reactive({
+      size: 15, win_length: 5, board: [], current_player: 1, winner: 0,
+      game_over: false, history: [], last_move: null, mode: 'human_vs_ai',
+      players: {}, model_base_url: 'http://localhost:10003',
+      thinking: false, last_error: null, ai_thinking: false, last_decision: null,
+      last_engine: null,
+      // 高级选项
+      thinking_budget: 1024, board_format: 'rows', analysis: false, tactics: false, assist: false,
+      hybrid: false, hybrid_hints: 3, hybrid_skip_model: true, algo_level: 'medium',
+      model_params: { temperature: 0.3, top_p: 0.95, top_k: 40, repeat_penalty: 1.1 }
+    });
+
+    const canvasRef = ref(null);
+    const wrapRef = ref(null);
+    const histRef = ref(null);
+    const logRef = ref(null);
+
+    const thinking = ref(false);          // 是否有一次 AI 走子正在进行
+    const busy = ref(false);
+    const autoPlaying = ref(false);
+    // 「帮我想一步」：hint 是算出来的建议（不落子），hinting 是计算进行中
+    const hint = ref(null);
+    const hinting = ref(false);
+    const settingsOpen = ref(false);
+    const helpOpen = ref(false);
+    const overOpen = ref(false);
+    const models = ref([]);
+    const modelsError = ref('');
+    const loadingModels = ref(false);
+    const shownError = ref('');
+    const toasts = ref([]);
+    const logs = ref([]);                 // 模型日志（流式）
+    const streaming = ref(false);         // 是否正在接收 SSE
+    const thinkingBusy = ref(false);      // 切换思考开关的请求进行中
+    let logSeq = 0;
+
+    const form = reactive({
+      size: 15, win_length: 5, mode: 'human_vs_ai',
+      p1: 'human', p2: 'ai', model: 'local-model',
+      // 难度是「每位算法玩家各自一份」，不再是全局一个 —— 所以能简单 vs 困难
+      p1_level: 'medium', p2_level: 'medium',
+      help_level: 'medium',      // 「帮我想一步」这次计算用哪一档
+      baseUrl: 'http://localhost:10003', interval: 1.2, thinking: false,
+      // 高级选项
+      thinking_budget: 1024, board_format: 'rows', analysis: false, tactics: false, assist: false,
+      hybrid: false, hybrid_hints: 3, hybrid_skip_model: true,
+      temperature: 0.3, top_p: 0.95, top_k: 40, repeat_penalty: 1.1
+    });
+
+    const boardFormats = [
+      { value: 'rows', label: '行号+数字', tip: '经典：行1: 0 0 0 …（最紧凑）' },
+      { value: 'cells', label: '逐格标注', tip: '第1行第1列:0 第1行第2列:0 …（最不易看错，但很长）' },
+      { value: 'coords', label: '只列棋子', tip: '只列出已落子的坐标 + 双方清单（信息密度最高）' }
+    ];
+    const thinkingBudgets = [
+      { value: 512, label: '低' }, { value: 1024, label: '中' },
+      { value: 2048, label: '高' }, { value: 4096, label: '极高' }
+    ];
+
+    const algoLevels = [
+      { value: 'easy', label: '简单', tip: '实测 2 层 / 约 0.03 秒，秒出，适合快速试玩' },
+      { value: 'medium', label: '普通', tip: '实测 4 层 / 约 0.3 秒，业余初级（默认档）' },
+      { value: 'hard', label: '困难', tip: '实测 6 层 / 约 2.2 秒，3 秒线内最强的一档' },
+      { value: 'ultra', label: '极致', tip: '⚠️ 分析档：实测 7 层 / 约 6 秒 —— 会超出 3 秒，只建议想看它算更深时用',
+        warn: true }
+    ];
+
+    const sizeOptions = [9, 13, 15, 19];
+    const winOptions = [3, 4, 5];
+    const modeOptions = [
+      { value: 'human_vs_ai', label: '人机对战' },
+      { value: 'ai_vs_ai', label: '机机对战' },
+      { value: 'human_vs_human', label: '人人对战' }
+    ];
+
+    /* --------------------------- 计算属性 --------------------------- */
+    const modeLabel = computed(() =>
+      ({ human_vs_ai: '人机对战', ai_vs_ai: '机机对战', human_vs_human: '人人对战' }[state.mode] || state.mode));
+
+    // 「机器落子」= LLM 或纯算法（两者都不该由人类替它下）
+    const isAiTurn = computed(() => {
+      const t = (state.players[state.current_player] || {}).type;
+      return t === 'ai' || t === 'algorithm';
+    });
+    const isAlgoTurn = computed(() => (state.players[state.current_player] || {}).type === 'algorithm');
+    // 当前 AI 是纯算法吗（用于状态面板与按钮文案）
+    const currentEngine = computed(() => {
+      const t = (state.players[state.current_player] || {}).type;
+      return t === 'algorithm' ? 'algorithm' : (t === 'ai' ? 'llm' : 'human');
+    });
+    const isHumanTurn = computed(() => (state.players[state.current_player] || {}).type === 'human');
+    const canHumanPlay = computed(() => !state.game_over && isHumanTurn.value && !busy.value && !autoPlaying.value);
+    const canStep = computed(() => !state.game_over && isAiTurn.value && !busy.value);
+    // 「帮我想一步」只在轮到人类时可用 —— 算法负责算，下不下由人决定
+    const canHint = computed(() => !state.game_over && isHumanTurn.value &&
+      !busy.value && !hinting.value && !autoPlaying.value);
+    // 场上是否有纯算法玩家（决定设置里要不要显示难度那一块）
+    const hasAlgoPlayer = computed(() =>
+      Object.values(state.players || {}).some(p => (p || {}).type === 'algorithm'));
+
+    const resultText = computed(() => {
+      if (state.winner === 1) return '🏆 黑方获胜！';
+      if (state.winner === 2) return '🏆 白方获胜！';
+      if (state.winner === 3) return '🤝 平局';
+      return '对局进行中';
+    });
+
+    const BOARD_FORMAT_LABEL = { rows: '行号+数字', cells: '逐格标注', coords: '只列棋子' };
+    const ALGO_LEVEL_LABEL = { easy: '简单', medium: '普通', hard: '困难', ultra: '极致' };
+    const BUDGET_LABEL = { 512: '低', 1024: '中', 2048: '高', 4096: '极高' };
+
+    // 场上有哪些纯算法玩家、各自什么难度（例：黑=困难/白=简单）
+    const algoSummary = computed(() => {
+      const parts = [];
+      for (const key of ['1', '2']) {
+        if ((state.players[key] || {}).type === 'algorithm') {
+          parts.push((key === '1' ? '黑' : '白') + '=' + levelOf(key));
+        }
+      }
+      return parts.join('/');
+    });
+
+    const advSummary = computed(() => {
+      const p = state.model_params || {};
+      const items = [
+        BOARD_FORMAT_LABEL[state.board_format] || state.board_format,
+        '解析' + (state.analysis ? '开' : '关'),
+        '战术' + (state.tactics ? '开' : '关'),
+        '辅助' + (state.assist ? '开' : '关'),
+        '混合' + (state.hybrid ? '开(' + (state.hybrid_hints || 3) + ')' : '关'),
+        algoSummary.value ? '算法' + algoSummary.value : null,
+        '思考' + (state.thinking ? (BUDGET_LABEL[state.thinking_budget] || state.thinking_budget) : '关'),
+        'T=' + (p.temperature !== undefined ? p.temperature : '-')
+      ];
+      return items.filter(x => x).join(' · ');
+    });
+
+    // 状态面板里那行「上一手为什么这么下」—— 只在开启混合决策且本步有判定时出现
+    const hybridLine = computed(() => {
+      const d = state.last_decision;
+      if (!state.hybrid || !d || !d.mode || d.mode === 'off') return '';
+      return hybridModeText(d) + (d.reason ? ' · ' + d.reason : '');
+    });
+
+    // 场上是否有 LLM 玩家 —— 没有的话「模型思考」这类开关就没意义，直接收起来
+    const hasLlmPlayer = computed(() =>
+      Object.values(state.players || {}).some(p => (p || {}).type === 'ai'));
+
+    const turnSuffix = computed(() => {
+      if (currentEngine.value === 'algorithm') return ' (🧩 纯算法)';
+      if (currentEngine.value === 'llm') return ' (AI)';
+      return ' 落子';
+    });
+
+    // 状态面板里那行「上一次纯算法搜了多深」—— 只在纯算法走过子之后出现
+    const engineLine = computed(() => {
+      const e = state.last_engine;
+      if (!e || e.depth === undefined) return '';
+      const who = e.player === 1 ? '黑方' : (e.player === 2 ? '白方' : '');
+      const lv = e.label || ALGO_LEVEL_LABEL[e.level] || e.level || '';
+      return (who ? who + '算法' : '纯算法') + (lv ? '（' + lv + '）' : '') +
+        '：深度 ' + e.depth + ' 层 · ' + (e.nodes || 0) + ' 个节点 · ' +
+        (e.ms || 0) + 'ms' + (e.vcf ? ' · ' + e.vcf : '') +
+        (e.reason ? ' —— ' + e.reason : '');
+    });
+
+    const boardFormatTip = computed(() => {
+      const f = boardFormats.find(x => x.value === form.board_format);
+      return f ? f.tip : '';
+    });
+
+    // 某位玩家自己的算法难度标签（只有纯算法玩家才有意义）
+    function levelOf(player) {
+      const p = state.players[player] || {};
+      if (p.type !== 'algorithm') return '';
+      const lv = p.level || state.algo_level || 'medium';
+      return ALGO_LEVEL_LABEL[lv] || lv;
+    }
+
+    // 兼容旧名字：默认档位（state.algo_level 只作兜底了）
+    const algoLevelLabel = computed(() => ALGO_LEVEL_LABEL[state.algo_level] || state.algo_level || '普通');
+
+    // 设置面板里那句难度说明 —— 黑/白各自一份，不再是一个全局值
+    const algoTipText = computed(() => {
+      const tip = v => (algoLevels.find(a => a.value === v) || {}).tip || '';
+      const parts = [];
+      if (form.p1 === 'algorithm') {
+        parts.push('黑方［' + (ALGO_LEVEL_LABEL[form.p1_level] || '') + '］' + tip(form.p1_level));
+      }
+      if (form.p2 === 'algorithm') {
+        parts.push('白方［' + (ALGO_LEVEL_LABEL[form.p2_level] || '') + '］' + tip(form.p2_level));
+      }
+      return parts.join('\n');
+    });
+    const algoTipWarn = computed(() => {
+      const warn = v => !!(algoLevels.find(a => a.value === v) || {}).warn;
+      return (form.p1 === 'algorithm' && warn(form.p1_level)) ||
+        (form.p2 === 'algorithm' && warn(form.p2_level));
+    });
+
+    function moverLabel(player) {
+      const p = state.players[player] || {};
+      if (p.type === 'human') return '人类';
+      if (p.type === 'algorithm') return '🧩 纯算法（' + levelOf(player) + '）';
+      return '🤖 ' + (p.model || 'AI');
+    }
+
+    function playerLabel(key) {
+      const p = state.players[key] || {};
+      if (p.type === 'human') return '人类';
+      if (p.type === 'algorithm') return '🧩 纯算法（' + levelOf(key) + '）';
+      const scope = /localhost|127\.0\.0\.1|0\.0\.0\.0/.test(state.model_base_url || '') ? '本地' : '远程';
+      return (p.model || 'AI') + ' (AI·' + scope + ')';
+    }
+
+    /* --------------------------- 提示 --------------------------- */
+    function pushToast(text, kind) {
+      const id = Date.now() + Math.random();
+      toasts.value.push({ id, text, kind: kind || '' });
+      setTimeout(() => {
+        toasts.value = toasts.value.filter(t => t.id !== id);
+      }, 3200);
+    }
+
+    let errTimer = null;
+    function showError(msg) {
+      shownError.value = msg;
+      clearTimeout(errTimer);
+      errTimer = setTimeout(() => { shownError.value = ''; }, 5000);
+    }
+
+    /* --------------------------- 模型日志 --------------------------- */
+    const LOG_TAGS = {
+      prompt: '提示词', notice: '提示', reasoning: '思考',
+      content: '输出', move: '落子', error: '错误', info: '信息', engine: '纯算法'
+    };
+    function logTag(kind) { return LOG_TAGS[kind] || kind; }
+
+    // 混合决策的层级标签（提示词日志 / 状态面板共用）
+    const HYBRID_MODE_TEXT = {
+      off: '关', normal: '不干预', restricted: '收敛候选', forced: '算法强制落子'
+    };
+    function hybridModeText(hy) {
+      if (!hy || !hy.mode || hy.mode === 'off') return '关';
+      const base = HYBRID_MODE_TEXT[hy.mode] || hy.mode;
+      if (hy.mode === 'restricted' && (hy.points || []).length) {
+        return base + '（' + hy.points.length + ' 个点）';
+      }
+      if (hy.mode === 'forced') return base + '（不经模型）';
+      return base;
+    }
+
+    function trimLogs() {
+      if (logs.value.length > 120) logs.value.splice(0, logs.value.length - 120);
+    }
+
+    function scrollLogs() {
+      const el = logRef.value;
+      if (el) el.scrollTop = el.scrollHeight;
+    }
+
+    // 追加一条独立日志
+    function pushLog(kind, text) {
+      logs.value.push({ id: ++logSeq, kind, text: text == null ? '' : String(text), live: false });
+      trimLogs();
+      nextTick(scrollLogs);
+    }
+
+    // 流式增量：与上一条同类且仍在流式 → 续写；否则开一条新条目
+    function streamDelta(kind, text) {
+      const last = logs.value[logs.value.length - 1];
+      if (last && last.kind === kind && last.live) {
+        last.text += text;
+        if (last.text.length > 40000) last.text = last.text.slice(-40000);
+      } else {
+        logs.value.push({ id: ++logSeq, kind, text, live: true });
+        trimLogs();
+      }
+      nextTick(scrollLogs);
+    }
+
+    function clearLogs() { logs.value = []; }
+
+    async function showPrompt() {
+      try {
+        const d = await request('/api/prompt');
+        if (d.engine === 'algorithm') {
+          // 轮到纯算法玩家：没有提示词可看，如实显示搜索配置
+          pushLog('prompt', '【当前轮到纯算法玩家，本步不生成提示词】\n' + d.prompt);
+          return;
+        }
+        const mp = d.model_params || {};
+        pushLog('prompt',
+          '【当前提示词预览】模型=' + d.model + ' ｜ 地址=' + d.url +
+          ' ｜ 思考=' + (d.thinking ? '开（预算 ' + d.max_tokens + ' token）' : '关') +
+          ' ｜ 棋盘=' + (BOARD_FORMAT_LABEL[d.board_format] || d.board_format) +
+          ' ｜ 解析=' + (d.analysis ? '开' : '关') +
+          ' ｜ 战术提示=' + (d.tactics ? '开' : '关') +
+          ' ｜ 算法辅助=' + (d.assist ? '开' : '关') +
+          ' ｜ 混合决策=' + hybridModeText(d.hybrid) +
+          '\n            采样：temperature=' + mp.temperature + '  top_p=' + mp.top_p +
+          '  top_k=' + mp.top_k + '  repeat_penalty=' + mp.repeat_penalty +
+          '  ｜ 轮到' + (d.player === 1 ? '黑棋(1)' : '白棋(2)') +
+          '\n' + d.prompt);
+      } catch (e) {
+        pushToast('获取提示词失败：' + e.message, 'warn');
+      }
+    }
+
+    /* --------------------------- 网络请求 --------------------------- */
+    async function request(path, options) {
+      const res = await fetch(path, options);
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + res.statusText);
+      return res.json();
+    }
+    const post = (path, body) => request(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    });
+
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    /* --------------------------- Canvas 绘制 --------------------------- */
+    let ctx = null, cell = 40, dpr = 1, hover = null;
+    const anim = { active: false, index: -1, start: 0, scale: 1 };
+
+    function pos(row, col) {
+      return { x: cell / 2 + col * cell, y: cell / 2 + row * cell };
+    }
+
+    function resizeCanvas() {
+      const cv = canvasRef.value;
+      if (!cv) return;
+      const N = state.size || 15;
+      dpr = window.devicePixelRatio || 1;
+      const wrapW = (wrapRef.value && wrapRef.value.clientWidth) || 640;
+      let avail = Math.min(640, wrapW, window.innerHeight - 190);
+      avail = Math.max(280, avail);
+      cell = Math.max(14, Math.floor(avail / N));
+      const size = cell * N;
+
+      cv.width = Math.round(size * dpr);
+      cv.height = Math.round(size * dpr);
+      cv.style.width = size + 'px';
+      cv.style.height = size + 'px';
+
+      ctx = cv.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      render();
+    }
+
+    function drawStone(row, col, player, scale, alpha) {
+      const { x, y } = pos(row, col);
+      const R = (cell * 0.85 / 2) * (scale === undefined ? 1 : scale);
+      ctx.save();
+      ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+      ctx.shadowColor = 'rgba(0,0,0,.4)';
+      ctx.shadowBlur = cell * 0.2;
+      ctx.shadowOffsetY = cell * 0.06;
+      const g = ctx.createRadialGradient(x - R * 0.35, y - R * 0.35, R * 0.08, x, y, R);
+      if (player === 1) { g.addColorStop(0, '#5c5c5c'); g.addColorStop(1, '#000000'); }
+      else { g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#c9cdd6'); }
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function render() {
+      if (!ctx || !state.board.length) return;
+      const N = state.size;
+      const size = cell * N;
+      ctx.clearRect(0, 0, size, size);
+
+      /* 网格线 */
+      ctx.strokeStyle = 'rgba(92,62,24,.5)';
+      ctx.lineWidth = Math.max(1, cell * 0.035);
+      ctx.beginPath();
+      for (let i = 0; i < N; i++) {
+        const p = cell / 2 + i * cell;
+        ctx.moveTo(p, cell / 2); ctx.lineTo(p, size - cell / 2);
+        ctx.moveTo(cell / 2, p); ctx.lineTo(size - cell / 2, p);
+      }
+      ctx.stroke();
+
+      /* 星位 */
+      const stars = STAR_POINTS[N] || (N % 2 === 1 ? [[(N - 1) / 2, (N - 1) / 2]] : []);
+      ctx.fillStyle = 'rgba(70,44,10,.85)';
+      for (const [r, c] of stars) {
+        const { x, y } = pos(r, c);
+        ctx.beginPath();
+        ctx.arc(x, y, Math.max(2, cell * 0.09), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      /* 棋子 */
+      for (let i = 0; i < state.history.length; i++) {
+        const m = state.history[i];
+        const s = (anim.active && i === anim.index) ? anim.scale : 1;
+        drawStone(m.row, m.col, m.player, s);
+      }
+
+      /* 最后一手红点标记 */
+      const lm = state.last_move;
+      if (lm) {
+        const { x, y } = pos(lm.row, lm.col);
+        ctx.save();
+        ctx.fillStyle = '#ef4444';
+        ctx.shadowColor = 'rgba(0,0,0,.45)';
+        ctx.shadowBlur = 4;
+        ctx.beginPath();
+        ctx.arc(x, y, Math.max(2.5, cell * 0.11), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      /* 🧩「帮我想一步」的建议点：画成蓝色脉冲光圈，不是棋子 —— 一眼能看出还没落子 */
+      if (hint.value && state.board[hint.value.row] &&
+          state.board[hint.value.row][hint.value.col] === 0) {
+        const { x, y } = pos(hint.value.row, hint.value.col);
+        const ph = hintPhase();
+        ctx.save();
+        ctx.fillStyle = 'rgba(74,158,255,.16)';
+        ctx.beginPath();
+        ctx.arc(x, y, cell * 0.36, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(74,158,255,' + (0.6 + 0.4 * ph).toFixed(2) + ')';
+        ctx.lineWidth = Math.max(2, cell * 0.085);
+        ctx.beginPath();
+        ctx.arc(x, y, cell * (0.30 + 0.07 * ph), 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      /* 悬浮预览 */
+      if (hover && canHumanPlay.value && state.board[hover.row] && state.board[hover.row][hover.col] === 0) {
+        drawStone(hover.row, hover.col, state.current_player, 0.92, 0.45);
+      }
+    }
+
+    /* 建议光圈的脉冲相位（0~1）。只脉冲 2.4 秒就停，避免一直占着 rAF 白烧 CPU */
+    let hintStart = 0, hintRaf = 0;
+    function hintPhase() {
+      const el = performance.now() - hintStart;
+      if (el > 2400) return 0.5;
+      return 0.5 + 0.5 * Math.sin(el / 220);
+    }
+    function stopHintPulse() {
+      if (hintRaf) { cancelAnimationFrame(hintRaf); hintRaf = 0; }
+    }
+    function startHintPulse() {
+      stopHintPulse();
+      hintStart = performance.now();
+      const loop = () => {
+        if (!hint.value) { hintRaf = 0; return; }
+        render();
+        if (performance.now() - hintStart > 2400) { hintRaf = 0; render(); return; }
+        hintRaf = requestAnimationFrame(loop);
+      };
+      hintRaf = requestAnimationFrame(loop);
+    }
+
+    function startAnim(index) {
+      anim.active = true;
+      anim.index = index;
+      anim.start = performance.now();
+      anim.scale = 0.3;
+      const dur = 250;
+      const loop = t => {
+        const p = Math.min(1, (t - anim.start) / dur);
+        const eased = 1 - Math.pow(1 - p, 3);
+        anim.scale = 0.3 + 0.7 * eased;
+        render();
+        if (p < 1) requestAnimationFrame(loop);
+        else { anim.active = false; anim.scale = 1; render(); }
+      };
+      requestAnimationFrame(loop);
+    }
+
+    /* --------------------------- 状态同步 --------------------------- */
+    function applyState(s) {
+      if (!s || typeof s !== 'object') return;
+      const prevLen = state.history.length;
+      const prevSize = state.size;
+
+      // 局面一旦变化（落子/悔棋/重开），之前算的「建议」就作废了
+      if (hint.value) { hint.value = null; stopHintPulse(); }
+
+      state.size = s.size;
+      state.win_length = s.win_length;
+      state.board = s.board;
+      state.current_player = s.current_player;
+      state.winner = s.winner;
+      state.game_over = s.game_over;
+      state.history = s.history || [];
+      state.last_move = s.last_move;
+      state.mode = s.mode;
+      state.players = s.players || {};
+      state.model_base_url = s.model_base_url;
+      state.thinking = !!s.thinking;
+      if (s.thinking_budget !== undefined) state.thinking_budget = s.thinking_budget;
+      if (s.model_params) state.model_params = s.model_params;
+      if (s.board_format) state.board_format = s.board_format;
+      state.analysis = !!s.analysis;
+      state.tactics = !!s.tactics;
+      state.assist = !!s.assist;
+      state.hybrid = !!s.hybrid;
+      if (s.hybrid_hints !== undefined) state.hybrid_hints = s.hybrid_hints;
+      if (s.hybrid_skip_model !== undefined) state.hybrid_skip_model = !!s.hybrid_skip_model;
+      if (s.algo_level) state.algo_level = s.algo_level;
+      state.last_engine = s.last_engine || null;
+      state.last_decision = s.last_decision || null;
+      state.last_error = s.last_error;
+      state.ai_thinking = s.ai_thinking;
+
+      if (state.size !== prevSize) resizeCanvas();
+      else if (state.history.length > prevLen) startAnim(state.history.length - 1);
+      else render();
+
+      if (state.last_error) showError(state.last_error);
+
+      if (state.game_over) {
+        stopAuto();
+        setTimeout(() => { overOpen.value = true; }, 420);
+      }
+
+      nextTick(scrollHistory);
+    }
+
+    function scrollHistory() {
+      const el = histRef.value;
+      if (el) el.scrollTop = el.scrollHeight;
+    }
+
+    /* --------------------------- 对局操作 --------------------------- */
+    async function refresh() {
+      try {
+        applyState(await request('/api/state'));
+      } catch (e) {
+        pushToast('无法连接后端：' + e.message, 'warn');
+      }
+    }
+
+    async function humanMove(row, col) {
+      busy.value = true;
+      try {
+        applyState(await post('/api/move', { row, col }));
+      } catch (e) {
+        pushToast('落子失败：' + e.message, 'warn');
+        busy.value = false;
+        return;
+      }
+      busy.value = false;
+      // 人类落子后，若轮到 AI 则自动应招
+      if (!state.game_over && isAiTurn.value) {
+        await sleep(320);
+        await doStep();
+      }
+    }
+
+    /* --------------------- SSE 流式走子 --------------------- */
+    // 把后端推来的 SSE 事件分派到日志 / 状态
+    function onSseEvent(event, p) {
+      switch (event) {
+        case 'prompt': {
+          const mp = p.model_params || {};
+          pushLog('prompt',
+            '【本步提示词】模型=' + p.model +
+            ' ｜ 思考=' + (p.thinking ? '开（预算 ' + p.max_tokens + ' token）' : '关') +
+            ' ｜ 棋盘=' + (BOARD_FORMAT_LABEL[p.board_format] || p.board_format) +
+            ' ｜ 解析=' + (p.analysis ? '开' : '关') +
+            ' ｜ 战术提示=' + (p.tactics ? '开' : '关') +
+            ' ｜ 算法辅助=' + (p.assist ? '开' : '关') +
+            ' ｜ 混合决策=' + hybridModeText(p.hybrid) +
+            '\n            采样：temperature=' + mp.temperature + '  top_p=' + mp.top_p +
+            '  top_k=' + mp.top_k + '  repeat_penalty=' + mp.repeat_penalty +
+            '  ｜ 轮到' + (p.player === 1 ? '黑棋(1)' : '白棋(2)') +
+            (p.hybrid && p.hybrid.reason ? '\n            └ ' + p.hybrid.reason : '') +
+            '\n' + p.prompt);
+          break;
+        }
+        case 'notice':
+          pushLog('notice', p.text);
+          break;
+        case 'reasoning':
+          streamDelta('reasoning', p.delta);
+          break;
+        case 'content':
+          streamDelta('content', p.delta);
+          break;
+        case 'engine': {
+          const side = p.player === 1 ? '黑方' : (p.player === 2 ? '白方' : '');
+          if (p.phase === 'start') {
+            pushLog('engine', '🧩 ' + side + '纯算法开始搜索 —— 难度=' + p.label +
+              '（目标 ' + p.depth + ' 层 · 节点预算 ' + p.nodes + ' · 每层留 ' + p.cands +
+              ' 个候选 · VCF ' + p.vcf + ' 层）｜ 本步不调用模型、不发任何网络请求');
+          } else {
+            pushLog('engine',
+              '🧩 ' + side + '纯算法搜索结果：难度=' + (p.label || p.level) +
+              ' · 深度 ' + p.depth + ' 层 · ' + p.nodes +
+              (p.budget ? '/' + p.budget : '') + ' 个节点 · ' +
+              p.ms + 'ms' + (p.vcf ? ' · ' + p.vcf : '') + '\n            └ ' +
+              (p.reason || '') + '　评分=' + p.score);
+          }
+          break;
+        }
+        case 'move': {
+          const src = p.source === 'model' ? '模型直接给出坐标'
+            : p.source === 'reasoning' ? '取自推理末尾的结论（回答被 token 预算截断）'
+              : p.source === 'algorithm' ? '🧮 算法强制落子（程序判定必下这里）'
+                : p.source === 'engine' ? '🧩 纯算法搜索（本步未调用模型）'
+                  : '启发式回退（模型没给出可用坐标）';
+          pushLog('move', '落在 第' + p.row1 + '行第' + p.col1 + '列（内部坐标 ' +
+            p.row + ',' + p.col + '）—— ' + src);
+          break;
+        }
+        case 'state':
+          applyState(p.state);
+          break;
+        default:
+          break;
+      }
+    }
+
+    function handleSseBlock(block) {
+      let event = 'message';
+      let data = '';
+      for (const line of block.split('\n')) {
+        if (line.startsWith('event:')) event = line.slice(6).trim();
+        else if (line.startsWith('data:')) data += line.slice(5).trim();
+      }
+      if (!data) return;
+      let payload;
+      try { payload = JSON.parse(data); } catch (e) { return; }
+      onSseEvent(event, payload);
+    }
+
+    async function consumeStream(body) {
+      const reader = body.getReader();
+      const dec = new TextDecoder('utf-8');
+      let buf = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf('\n\n')) >= 0) {
+          handleSseBlock(buf.slice(0, idx));
+          buf = buf.slice(idx + 2);
+        }
+      }
+      if (buf.trim()) handleSseBlock(buf);
+    }
+
+    async function doStep() {
+      if (state.game_over || !isAiTurn.value || busy.value) return;
+      busy.value = true;
+      thinking.value = true;
+      state.ai_thinking = true;
+      streaming.value = true;
+      try {
+        const res = await fetch('/api/step_stream', { method: 'POST' });
+        if (!res.ok || !res.body) throw new Error('HTTP ' + res.status);
+        await consumeStream(res.body);
+      } catch (e) {
+        pushLog('error', '请求失败：' + e.message);
+        pushToast('AI 走子请求失败：' + e.message, 'warn');
+      } finally {
+        busy.value = false;
+        thinking.value = false;
+        streaming.value = false;
+        state.ai_thinking = false;
+      }
+    }
+
+    async function toggleThinking() {
+      if (thinkingBusy.value) return;
+      thinkingBusy.value = true;
+      try {
+        const s = await post('/api/thinking', { enabled: !state.thinking });
+        applyState(s);
+        pushLog('info', '模型思考已' + (s.thinking
+          ? '开启：模型会先写出推理过程再落子（慢，棋力更好）。'
+          : '关闭：直接输出坐标（快）。'));
+        pushToast('模型思考已' + (s.thinking ? '开启' : '关闭'), 'ok');
+      } catch (e) {
+        pushToast('切换失败：' + e.message, 'warn');
+      } finally {
+        thinkingBusy.value = false;
+      }
+    }
+
+    function manualStep() {
+      if (state.game_over || !isAiTurn.value) {
+        pushToast('当前不是 AI 回合', 'warn');
+        return;
+      }
+      doStep();
+    }
+
+    /* ------------------ 🧩 让算法帮我想一步（只给建议，不落子） ------------------ */
+    async function askHint() {
+      if (state.game_over) { pushToast('对局已结束', 'warn'); return; }
+      if (!isHumanTurn.value) { pushToast('只有轮到你时才能让算法替你算', 'warn'); return; }
+      if (hinting.value) return;
+      hinting.value = true;
+      hint.value = null;
+      try {
+        const d = await post('/api/hint', { level: form.help_level });
+        if (!d.ok) throw new Error(d.error || '算法没有给出落点');
+        hint.value = d;
+        pushLog('engine', '🧩 算法建议（' + d.level_label + '）：下在 第' + d.row1 + '行第' + d.col1 +
+          '列（内部坐标 ' + d.row + ',' + d.col + '）\n            深度 ' + d.depth + ' 层 · ' +
+          (d.nodes || 0) + ' 个节点 · ' + d.ms + 'ms' + (d.vcf ? ' · ' + d.vcf : '') +
+          '\n            └ ' + (d.reason || '') + '　评分=' + d.score +
+          '\n            （只是建议，还没落子 —— 点棋盘上「✅ 就下这里」，或直接忽略它自己下）');
+        pushToast('算法建议：第' + d.row1 + '行第' + d.col1 + '列（棋盘上已圈出，未落子）', 'ok');
+        startHintPulse();
+      } catch (e) {
+        pushToast('算法建议失败：' + e.message, 'warn');
+      } finally {
+        hinting.value = false;
+      }
+    }
+
+    async function acceptHint() {
+      const h = hint.value;
+      if (!h) return;
+      if (state.board[h.row] && state.board[h.row][h.col] === 0) {
+        await humanMove(h.row, h.col);
+      } else {
+        pushToast('这个点已经被占了，重新算一次吧', 'warn');
+        hint.value = null;
+      }
+      hint.value = null;
+    }
+
+    function clearHint() {
+      hint.value = null;
+      stopHintPulse();
+      render();
+    }
+
+    async function undo() {
+      stopAuto();
+      busy.value = true;
+      try {
+        applyState(await post('/api/undo'));
+      } catch (e) {
+        pushToast('悔棋失败：' + e.message, 'warn');
+      } finally {
+        busy.value = false;
+      }
+    }
+
+    /* --------------------------- 自动对战 --------------------------- */
+    let autoTimer = null;
+
+    function stopAuto() {
+      autoPlaying.value = false;
+      clearTimeout(autoTimer);
+      autoTimer = null;
+    }
+
+    async function autoTick() {
+      if (!autoPlaying.value) return;
+      if (state.game_over) { stopAuto(); return; }
+      if (!isAiTurn.value) {
+        stopAuto();
+        pushToast('当前轮到人类落子，已暂停自动对战', 'warn');
+        return;
+      }
+      await doStep();
+      if (!autoPlaying.value || state.game_over) return;
+      autoTimer = setTimeout(autoTick, Math.round(form.interval * 1000));
+    }
+
+    function toggleAuto() {
+      if (autoPlaying.value) { stopAuto(); return; }
+      if (state.game_over) { pushToast('对局已结束', 'warn'); return; }
+      autoPlaying.value = true;
+      pushToast('自动对战已开始，间隔 ' + form.interval.toFixed(1) + ' 秒', 'ok');
+      autoTick();
+    }
+
+    /* --------------------------- 设置 --------------------------- */
+    async function loadModels() {
+      loadingModels.value = true;
+      modelsError.value = '';
+      try {
+        const data = await request('/api/models?base_url=' + encodeURIComponent(form.baseUrl || ''));
+        models.value = data.models || [];
+        if (data.error) {
+          modelsError.value = data.error;
+          models.value = [];
+        } else if (models.value.length) {
+          if (!models.value.includes(form.model)) form.model = models.value[0];
+        }
+      } catch (e) {
+        models.value = [];
+        modelsError.value = e.message;
+      } finally {
+        loadingModels.value = false;
+      }
+    }
+
+    // 结构化分析报告（/api/analysis）—— 把程序算出来的 JSON 概括后打进日志，
+    // 方便对照「塞进提示词的那段自然语言」到底是从什么数据来的
+    async function showAnalysis() {
+      try {
+        const d = await request('/api/analysis');
+        const gi = d.game_info || {};
+        const fmt = c => '(' + (c[0] + 1) + ',' + (c[1] + 1) + ')';
+        const fmtList = list => (list || []).map(fmt).join('') || '无';
+        const lines = ['【结构化分析报告】' + gi.board_size + '×' + gi.board_size +
+          ' / ' + gi.win_length + '子 ｜ 视角：' + (gi.current_player === 1 ? '黑棋(1)' : '白棋(2)') +
+          ' ｜ 已下 ' + gi.total_moves + ' 手 ｜ 候选点 ' + gi.candidate_count + ' 个'];
+
+        const pushThreats = (title, list) => {
+          if (!list || !list.length) { lines.push('· ' + title + '：无'); return; }
+          lines.push('· ' + title + '：');
+          list.forEach(t => lines.push('    - ' + t.type + '（' + t.dir + '）【' + t.urgency + '】' +
+            ' 棋型 ' + fmtList(t.coords) + ' → 关键点 ' + fmtList(t.key_points)));
+        };
+        pushThreats('己方棋型', d.my_threats);
+        pushThreats('对手棋型', d.opponent_threats);
+
+        const cp = d.critical_points || {};
+        lines.push('· 关键点：一子即胜 ' + fmtList(cp.winning_move) +
+          ' ｜ 必须封堵 ' + fmtList(cp.must_block) +
+          ' ｜ 最佳进攻 ' + (cp.best_attack ? fmt(cp.best_attack) : '无'));
+
+        lines.push('· 候选点前 8（共 ' + (d.candidates || []).length + ' 个）:');
+        (d.candidates || []).slice(0, 8).forEach((c, i) => {
+          lines.push('    ' + (i + 1) + '. ' + fmt(c.coord) +
+            ' 评分 ' + c.score + '（攻 ' + c.attack + ' / 守 ' + c.defense + '）' +
+            ' · ' + c.label + (c.combo ? '[' + c.combo + ']' : '') + ' —— ' + c.reason);
+        });
+
+        pushLog('info', lines.join('\n'));
+        pushToast('分析报告已输出到下方日志', 'ok');
+      } catch (e) {
+        pushToast('获取分析报告失败：' + e.message, 'warn');
+      }
+    }
+
+    function openSettings() {
+      form.size = state.size;
+      form.win_length = state.win_length;
+      form.mode = state.mode;
+      form.p1 = (state.players['1'] || {}).type || 'human';
+      form.p2 = (state.players['2'] || {}).type || 'ai';
+      form.baseUrl = state.model_base_url || 'http://localhost:10003';
+      form.thinking = !!state.thinking;
+      // 高级选项
+      form.thinking_budget = state.thinking_budget || 1024;
+      form.board_format = state.board_format || 'rows';
+      form.analysis = !!state.analysis;
+      form.tactics = !!state.tactics;
+      form.assist = !!state.assist;
+      form.hybrid = !!state.hybrid;
+      form.hybrid_hints = state.hybrid_hints || 3;
+      form.hybrid_skip_model = state.hybrid_skip_model !== false;
+      // 难度是每位玩家各自的；没单独设过就沿用默认档
+      const dflt = state.algo_level || 'medium';
+      form.p1_level = (state.players['1'] || {}).level || dflt;
+      form.p2_level = (state.players['2'] || {}).level || dflt;
+      const mp = state.model_params || {};
+      form.temperature = mp.temperature !== undefined ? mp.temperature : 0.3;
+      form.top_p = mp.top_p !== undefined ? mp.top_p : 0.95;
+      form.top_k = mp.top_k !== undefined ? mp.top_k : 40;
+      form.repeat_penalty = mp.repeat_penalty !== undefined ? mp.repeat_penalty : 1.1;
+
+      const ai = (state.players['2'] || {}).model || (state.players['1'] || {}).model;
+      if (ai) form.model = ai;
+      settingsOpen.value = true;
+      loadModels();
+    }
+
+    // 高级选项的请求体（不含会触发重开的项）
+    function advancedPayload() {
+      return {
+        thinking: !!form.thinking,
+        thinking_budget: form.thinking_budget,
+        model_params: {
+          temperature: form.temperature,
+          top_p: form.top_p,
+          top_k: form.top_k,
+          repeat_penalty: form.repeat_penalty
+        },
+        board_format: form.board_format,
+        analysis: !!form.analysis,
+        tactics: !!form.tactics,
+        assist: !!form.assist,
+        hybrid: !!form.hybrid,
+        hybrid_hints: form.hybrid_hints,
+        hybrid_skip_model: !!form.hybrid_skip_model,
+        // 难度分别下发给黑白两方（后端只对「纯算法」那一方生效）
+        players_level: { '1': form.p1_level, '2': form.p2_level }
+      };
+    }
+
+    // 只应用高级设置，不重开对局
+    async function applyAdvanced() {
+      try {
+        applyState(await post('/api/settings', advancedPayload()));
+        pushToast('高级设置已应用（未重开对局）', 'ok');
+        pushLog('info', '高级设置已更新 → ' + advSummary.value);
+      } catch (e) {
+        pushToast('应用失败：' + e.message, 'warn');
+      }
+    }
+
+    function setMode(mode) {
+      form.mode = mode;
+      if (mode === 'ai_vs_ai') { form.p1 = 'ai'; form.p2 = 'ai'; }
+      else if (mode === 'human_vs_human') { form.p1 = 'human'; form.p2 = 'human'; }
+      else if (form.p1 === form.p2) { form.p1 = 'human'; form.p2 = 'ai'; }
+    }
+
+    async function newGame() {
+      stopAuto();
+      const payload = {
+        size: form.size,
+        win_length: form.win_length,
+        mode: form.mode,
+        players: {
+          '1': { type: form.p1, model: form.p1 === 'ai' ? form.model : null,
+                 level: form.p1 === 'algorithm' ? form.p1_level : null },
+          '2': { type: form.p2, model: form.p2 === 'ai' ? form.model : null,
+                 level: form.p2 === 'algorithm' ? form.p2_level : null }
+        },
+        model_base_url: form.baseUrl || 'http://localhost:10003',
+        thinking: !!form.thinking,
+        thinking_budget: form.thinking_budget,
+        model_params: {
+          temperature: form.temperature,
+          top_p: form.top_p,
+          top_k: form.top_k,
+          repeat_penalty: form.repeat_penalty
+        },
+        board_format: form.board_format,
+        analysis: !!form.analysis,
+        tactics: !!form.tactics,
+        assist: !!form.assist,
+        hybrid: !!form.hybrid,
+        hybrid_hints: form.hybrid_hints,
+        hybrid_skip_model: !!form.hybrid_skip_model
+      };
+      const s = await post('/api/new_game', payload);
+      overOpen.value = false;
+      shownError.value = '';
+      applyState(s);
+    }
+
+    async function confirmSettings() {
+      try {
+        await newGame();
+        settingsOpen.value = false;
+        pushToast('已按新设置开局', 'ok');
+        // 若新对局的第一手就轮到 AI，稍等一下再让它落子
+        await sleep(350);
+        if (!state.game_over && isAiTurn.value) doStep();
+      } catch (e) {
+        pushToast('开局失败：' + e.message, 'warn');
+      }
+    }
+
+    async function restart() {
+      try {
+        await newGame();
+        pushToast('已重开一局', 'ok');
+        if (!state.game_over && isAiTurn.value) doStep();
+      } catch (e) {
+        pushToast('重开失败：' + e.message, 'warn');
+      }
+    }
+
+    /* --------------------------- 交互 --------------------------- */
+    function locate(ev) {
+      const cv = canvasRef.value;
+      if (!cv) return null;
+      const rect = cv.getBoundingClientRect();
+      const col = Math.round((ev.clientX - rect.left - cell / 2) / cell);
+      const row = Math.round((ev.clientY - rect.top - cell / 2) / cell);
+      if (row < 0 || col < 0 || row >= state.size || col >= state.size) return null;
+      return { row, col };
+    }
+
+    function onMouseMove(ev) {
+      const p = locate(ev);
+      const changed = (!p && hover) || (p && (!hover || p.row !== hover.row || p.col !== hover.col));
+      hover = p;
+      if (changed) render();
+    }
+
+    function onMouseLeave() {
+      if (hover) { hover = null; render(); }
+    }
+
+    function onClick(ev) {
+      if (!canHumanPlay.value) return;
+      const p = locate(ev);
+      if (!p) return;
+      if (state.board[p.row][p.col] !== 0) return;
+      humanMove(p.row, p.col);
+    }
+
+    /* --------------------------- 生命周期 --------------------------- */
+    let resizeTimer = null;
+    function onResize() {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(resizeCanvas, 120);
+    }
+
+    onMounted(async () => {
+      await refresh();
+      await nextTick();
+      resizeCanvas();
+      window.addEventListener('resize', onResize);
+      // 若开局第一手就轮到 AI（如黑方设为 AI），自动走一步，避免卡住
+      if (!state.game_over && isAiTurn.value) {
+        await sleep(400);
+        doStep();
+      }
+    });
+
+    return {
+      state, canvasRef, wrapRef, histRef, logRef,
+      thinking, busy, autoPlaying, settingsOpen, helpOpen, overOpen,
+      models, modelsError, loadingModels, shownError, toasts, form,
+      logs, streaming, thinkingBusy,
+      hint, hinting, canHint, hasAlgoPlayer, algoTipText, algoTipWarn,
+      sizeOptions, winOptions, modeOptions, boardFormats, thinkingBudgets,
+      modeLabel, isAiTurn, isHumanTurn, canHumanPlay, canStep, resultText,
+      moverLabel, playerLabel, logTag, advSummary, boardFormatTip, hybridLine,
+      hasLlmPlayer, turnSuffix, engineLine, isAlgoTurn, currentEngine,
+      algoLevels, algoLevelLabel, levelOf,
+      onMouseMove, onMouseLeave, onClick,
+      manualStep, toggleAuto, undo, restart, toggleThinking, showPrompt, clearLogs,
+      askHint, acceptHint, clearHint,
+      openSettings, setMode, confirmSettings, applyAdvanced, loadModels, showAnalysis
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
